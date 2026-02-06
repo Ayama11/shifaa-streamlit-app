@@ -1,16 +1,27 @@
 import os
+import time
 import streamlit as st
 import torch
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# أداء/استقرار على Streamlit Cloud
+# ===== Performance / Stability =====
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 torch.set_num_threads(1)
 
 MODEL_ID = "aya99ma/shifaa-bert-classifier"
 
-# تحويل LABEL_x إلى أسماء عربية (مطابق لترتيب label_encoder)
+
+GITHUB_REPO_URL = "https://github.com/Ayama11/shifaa-streamlit-app"
+HF_MODEL_URL = f"https://huggingface.co/{MODEL_ID}"
+
+# Model metrics (as provided)
+METRICS = {
+    "Accuracy": 0.82,
+    "F1-macro": 0.70,
+}
+
+# Arabic labels mapping (from your label_encoder)
 LABELS_AR = {
     "LABEL_0": "أمراض الأطفال ومشاكلهم",
     "LABEL_1": "أمراض الباطنية والصدر",
@@ -33,33 +44,49 @@ LABELS_AR = {
 st.set_page_config(
     page_title="Shifaa Question Classifier",
     page_icon="🩺",
-    layout="centered"
+    layout="centered",
 )
 
-# CSS لتحسين المظهر + RTL
+# ===== Minimal, responsive RTL styling (no fixed widths) =====
 st.markdown("""
 <style>
 html, body, [class*="css"]  { direction: rtl; text-align: right; }
-.block-container { padding-top: 2rem; max-width: 900px; }
+.block-container { padding-top: 1.8rem; max-width: 920px; }
 
-h1, h2, h3 { letter-spacing: 0.2px; }
+.small-muted { opacity: 0.78; font-size: 0.95rem; line-height: 1.5; }
+.kpi { opacity: 0.88; font-size: 0.92rem; }
+
+.card {
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.03);
+    margin-bottom: 12px;
+}
+
+.card-strong {
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05);
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
 
 div.stButton > button {
     width: 100%;
-    border-radius: 12px;
-    padding: 0.6rem 1rem;
-    font-weight: 700;
-}
-
-.result-card {
-    border: 1px solid rgba(255,255,255,0.10);
     border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
-    background: rgba(255,255,255,0.03);
+    padding: 0.7rem 1rem;
+    font-weight: 800;
 }
 
-.small-muted { opacity: 0.75; font-size: 0.92rem; line-height: 1.35; }
+a.cleanlink { text-decoration: none; }
+a.cleanlink:hover { text-decoration: underline; }
 
 footer {visibility: hidden;}
 </style>
@@ -67,79 +94,163 @@ footer {visibility: hidden;}
 
 @st.cache_resource
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
-    model.eval()
-    return tokenizer, model
+    tok = AutoTokenizer.from_pretrained(MODEL_ID)
+    mdl = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
+    mdl.eval()
+    return tok, mdl
 
-with st.spinner("جاري تحميل الموديل... قد يستغرق ذلك بعض الوقت في أول تشغيل"):
+with st.spinner("جاري تحميل الموديل... (قد يستغرق ذلك أول مرة)"):
     tokenizer, model = load_model()
 
-# Header
+# ===== Header =====
 st.title("🩺 تصنيف أسئلة شفاء الطبية")
 st.markdown(
     '<div class="small-muted">'
-    'نموذج لتصنيف الأسئلة الطبية إلى 16 فئة. '
-    'مخصص للعرض الأكاديمي/البحثي ولا يُعد تشخيصًا طبيًا.'
+    'نموذج لتصنيف الأسئلة الطبية إلى <b>16</b> فئة باستخدام BERT (Fine-tuned). '
+    'للأغراض البحثية/العرض فقط.'
     '</div>',
     unsafe_allow_html=True
 )
+
+# Quick links (clickable)
+st.markdown(
+    f"""
+<div class="small-muted">
+  🔗 <a class="cleanlink" href="{GITHUB_REPO_URL}" target="_blank"><b>GitHub Repo</b></a>
+  &nbsp; | &nbsp;
+  🤗 <a class="cleanlink" href="{HF_MODEL_URL}" target="_blank"><b>HuggingFace Model</b></a>
+</div>
+""",
+    unsafe_allow_html=True
+)
+
 st.divider()
 
-# Layout
-col1, col2 = st.columns([2, 1], gap="large")
+# ===== Input Section (Stacked for mobile friendliness) =====
+st.markdown('<div class="card">', unsafe_allow_html=True)
 
-with col1:
-    text = st.text_area(
-        "اكتب السؤال الطبي هنا:",
-        height=150,
-        placeholder="مثال: لدي صداع شديد منذ يومين مع دوخة، ما السبب المحتمل؟"
-    )
+question = st.text_area(
+    "اكتب السؤال الطبي هنا:",
+    height=160,
+    placeholder="مثال: لدي صداع شديد منذ يومين مع دوخة، ما السبب المحتمل؟"
+)
 
-with col2:
-    top_k = st.slider("عدد التصنيفات المعروضة", 1, 5, 3)
-    show_all_probs = st.checkbox("عرض جميع الاحتمالات", value=False)
-    classify = st.button("صنّف السؤال")
+top_k = st.slider("عدد التصنيفات المعروضة", 1, 5, 3)
+show_all_probs = st.checkbox("عرض جميع الاحتمالات", value=False)
 
+classify = st.button("صنّف السؤال")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ===== Inference =====
 if classify:
-    if not text.strip():
+    if not question.strip():
         st.warning("من فضلك اكتب سؤالًا أولًا.")
     else:
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+        t0 = time.perf_counter()
+
+        inputs = tokenizer(
+            question,
+            return_tensors="pt",
+            truncation=True,
+            padding=True,
+        )
 
         with torch.inference_mode():
             logits = model(**inputs).logits
             probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
 
+        ms = (time.perf_counter() - t0) * 1000.0
+
         order = probs.argsort()[::-1]
         top_idx = order[:top_k]
 
+        # Top-1
+        i0 = int(top_idx[0])
+        label0_en = model.config.id2label[i0]
+        label0_ar = LABELS_AR.get(label0_en, label0_en)
+        p0 = float(probs[i0])
+
         st.subheader("النتائج")
 
-        # عرض Top-k كبطاقات + progress
-        for i in top_idx:
-            label_en = model.config.id2label[i]
-            label_ar = LABELS_AR.get(label_en, label_en)
-            p = float(probs[i])
-
-            st.markdown(f"""
-            <div class="result-card">
-                <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-                    <div style="font-weight:800; font-size:1.05rem;">{label_ar}</div>
-                    <div style="font-weight:800;">{p*100:.2f}%</div>
-                </div>
-                <div class="small-muted" style="margin-top:6px;">
-                    التصنيف المتوقع بناءً على السؤال المُدخل.
-                </div>
+        st.markdown(
+            f"""
+            <div class="card card-strong">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <div style="font-weight:900; font-size:1.08rem;">{label0_ar}</div>
+                <div class="badge">{p0*100:.2f}%</div>
+              </div>
+              <div class="kpi" style="margin-top:8px;">
+                زمن الاستجابة: <b>{ms:.0f} ms</b>
+              </div>
             </div>
-            """, unsafe_allow_html=True)
-            st.progress(p)
+            """,
+            unsafe_allow_html=True
+        )
+        st.progress(p0)
 
+        # Remaining Top-k
+        if len(top_idx) > 1:
+            st.markdown("##### أعلى تصنيفات أخرى")
+            for i in top_idx[1:]:
+                i = int(i)
+                label_en = model.config.id2label[i]
+                label_ar = LABELS_AR.get(label_en, label_en)
+                p = float(probs[i])
+
+                st.markdown(
+                    f"""
+                    <div class="card">
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <div style="font-weight:800;">{label_ar}</div>
+                        <div class="badge">{p*100:.2f}%</div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                st.progress(p)
+
+        # Optional: show all probabilities
         if show_all_probs:
             st.divider()
             st.markdown("### جميع الاحتمالات")
             for i in order:
+                i = int(i)
                 label_en = model.config.id2label[i]
                 label_ar = LABELS_AR.get(label_en, label_en)
                 p = float(probs[i])
                 st.write(f"- {label_ar}: {p*100:.2f}%")
+
+# ===== Footer / Project Info (Bottom, responsive) =====
+st.divider()
+
+st.markdown(
+    f"""
+<div class="card">
+  <div style="font-weight:900; font-size:1.05rem; margin-bottom:6px;">عن المشروع</div>
+
+  <div class="small-muted">
+    هذا العمل يقدّم نموذجًا لتصنيف أسئلة منصة شفاء الطبية إلى 16 فئة باستخدام BERT بعد Fine-tuning.
+    الهدف هو عرض تجربة NLP كاملة تشمل التدريب، التقييم، ثم نشر واجهة تفاعلية عبر Streamlit.
+  </div>
+
+  <div style="margin-top:12px;">
+    <span class="badge">Accuracy ≈ {METRICS["Accuracy"]:.2f}</span>
+    &nbsp;
+    <span class="badge">F1-macro ≈ {METRICS["F1-macro"]:.2f}</span>
+  </div>
+
+  <div class="small-muted" style="margin-top:12px;">
+    <b>الموديل:</b> <a class="cleanlink" href="{HF_MODEL_URL}" target="_blank">{MODEL_ID}</a>
+    &nbsp; | &nbsp;
+    <b>المصدر:</b> <a class="cleanlink" href="{GITHUB_REPO_URL}" target="_blank">GitHub</a>
+  </div>
+
+  <div class="small-muted" style="margin-top:10px;">
+    تنبيه: النتائج معلوماتية ولا تغني عن استشارة طبيب مختص.
+  </div>
+</div>
+""",
+    unsafe_allow_html=True
+)
