@@ -1,0 +1,21 @@
+# 🩺 Shifaa Medical Question Classifier (Arabic)
+
+Arabic medical question classification into **16 categories** using **AraBERT (fine-tuned)**.
+
+## Live Demo
+- Streamlit: https://shifaa-app-app-kphfdr6vpdwjnhkfirlgpu.streamlit.app/
+
+## Model
+- HuggingFace: https://huggingface.co/aya99ma/shifaa-bert-classifier
+
+## Results
+- **Accuracy ≈ 0.82**
+- **F1-macro ≈ 0.70**
+
+## How it works
+User enters a medical question (Arabic) → model predicts the most likely category + confidence.
+
+## Run locally
+```bash
+pip install -r requirements.txt
+streamlit run app.py
