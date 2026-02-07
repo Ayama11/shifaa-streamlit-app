@@ -84,13 +84,6 @@ div.stButton > button {
     font-weight: 800;
 }
 
-/* Link buttons (Streamlit) - small polish without breaking responsiveness */
-div[data-testid="stLinkButton"] a {
-    border-radius: 14px !important;
-    font-weight: 800 !important;
-    padding: 0.7rem 1rem !important;
-}
-
 a.cleanlink { text-decoration: none; }
 a.cleanlink:hover { text-decoration: underline; }
 
@@ -117,10 +110,6 @@ st.markdown(
     '</div>',
     unsafe_allow_html=True
 )
-
-# ✅ Responsive interactive links (won't overflow on mobile/desktop)
-st.link_button("🐙 GitHub Repo", GITHUB_REPO_URL, use_container_width=True)
-st.link_button("🤗 HuggingFace Model", HF_MODEL_URL, use_container_width=True)
 
 st.divider()
 
