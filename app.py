@@ -11,7 +11,6 @@ torch.set_num_threads(1)
 
 MODEL_ID = "aya99ma/shifaa-bert-classifier"
 
-
 GITHUB_REPO_URL = "https://github.com/Ayama11/shifaa-streamlit-app"
 HF_MODEL_URL = f"https://huggingface.co/{MODEL_ID}"
 
@@ -85,6 +84,13 @@ div.stButton > button {
     font-weight: 800;
 }
 
+/* Link buttons (Streamlit) - small polish without breaking responsiveness */
+div[data-testid="stLinkButton"] a {
+    border-radius: 14px !important;
+    font-weight: 800 !important;
+    padding: 0.7rem 1rem !important;
+}
+
 a.cleanlink { text-decoration: none; }
 a.cleanlink:hover { text-decoration: underline; }
 
@@ -112,17 +118,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Quick links (clickable)
-st.markdown(
-    f"""
-<div class="small-muted">
-  🔗 <a class="cleanlink" href="{GITHUB_REPO_URL}" target="_blank"><b>GitHub Repo</b></a>
-  &nbsp; | &nbsp;
-  🤗 <a class="cleanlink" href="{HF_MODEL_URL}" target="_blank"><b>HuggingFace Model</b></a>
-</div>
-""",
-    unsafe_allow_html=True
-)
+# ✅ Responsive interactive links (won't overflow on mobile/desktop)
+st.link_button("🐙 GitHub Repo", GITHUB_REPO_URL, use_container_width=True)
+st.link_button("🤗 HuggingFace Model", HF_MODEL_URL, use_container_width=True)
 
 st.divider()
 
@@ -248,7 +246,7 @@ st.markdown(
   </div>
 
   <div class="small-muted" style="margin-top:10px;">
-   تنبيه: هذا النموذج يصنّف السؤال حسب الفئة الطبية المتوقعة فقط، ولا يقدّم تشخيصًا أو توصيات علاجية.
+    تنبيه: هذا النموذج يصنّف السؤال حسب الفئة الطبية المتوقعة فقط، ولا يقدّم تشخيصًا أو توصيات علاجية.
   </div>
 </div>
 """,
